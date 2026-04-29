@@ -1,0 +1,83 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Directory metadata
+.directory
+
+# Temporary files
+*~
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# Log files
+*.log
+build_log.txt
+
+# Build artifacts and directories
+**/build/
+build/
+*.o
+*.a
+*.out
+*.exe
+
+# ESP-IDF specific build outputs
+*.bin
+*.elf
+*.map
+flasher_args.json
+
+# NOTE: sdkconfig, sdkconfig.old, sdkconfig.defaults, sdkconfig2 are intentionally tracked
+# They are REQUIRED for the project to compile correctly on esp32p4.
+# DO NOT add them to this .gitignore.
+
+# NOTE: managed_components/ is intentionally tracked.
+# These are the downloaded ESP-IDF component manager dependencies.
+# Tracking them ensures the project compiles immediately after cloning,
+# without needing internet access or running idf.py update-dependencies.
+
+# NOTE: dependencies.lock is intentionally tracked.
+# It ensures reproducible component versions.
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+install_manifest.txt
+CTestTestfile.cmake
+
+# Python environment files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.egg-info/
+dist/
+
+# Virtual environment folders
+venv/
+.venv/
+env/
+
+# Language Server / Editor caches (auto-generated, no need to track)
+.cache/
+.clangd/
+.ccls-cache/
+compile_commands.json
+
+# Claude Code local settings (machine-specific)
+.claude/settings.local.json
+
+# Windows specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# User-specific IDE files
+*.user
+*.suo
+*.sln.docstates

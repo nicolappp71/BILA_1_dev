@@ -1,0 +1,43 @@
+﻿BILANCIA RS232 — COMANDI
+========================
+Protocollo: STX(0x02) + SPACE + COMANDO + ETX(0x03)
+Baud: 9600, 8N1
+
+COMANDO   DIREZIONE   DESCRIZIONE
+-------   ---------   -----------
+SREM      TX          Attiva modalita remota (inviare all accensione)
+
+AIMW      TX/RX       Lettura consumo istantaneo (polling ~1s)
+                      Risposta: "AIMW 1 XXXX ..."
+                      Valore grammi a offset [7..10] (4 caratteri)
+
+SMES 0    TX          Imposta modalita misura = 0
+                      (da inviare prima di SINT+AWRT)
+
+SINT      TX          Avvia integrazione
+                      (da inviare dopo SMES 0, attendere 50ms)
+
+AWRT      TX/RX       Richiede peso corrente
+                      Risposta: "AWRT   XXX.XX"
+                      Valore grammi a offset [7..12] (6 caratteri, es. "330.50")
+
+SAVA      TX          Salva / azzera integrazione
+                      Inviare quando livello < 330g (soglia ricarica automatica)
+
+
+SEQUENZA CHECK LIVELLO (fine collaudo)
+--------------------------------------
+1. TX: SMES 0
+2. Attesa 200ms
+3. TX: SINT
+4. Attesa 50ms
+5. TX: AWRT
+6. RX: leggi risposta (timeout 500ms)
+7. Se peso < 330g -> TX: SAVA
+
+
+PARAMETRI SERBATOIO
+-------------------
+Massimo display : 452.2 g  (pieno)
+Minimo display  : 200.0 g  (soglia barra)
+Ricarica auto   : 330.0 g  (sotto questa -> SAVA)
