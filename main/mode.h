@@ -9,6 +9,8 @@
 
 // Codice banchetto che ha le pagine collaudo (bilancia simulazione web)
 #define COLLAUDI_BANCHETTO_ID "222"
+// Codice banchetto spalmatrice 2 assi
+#define SPAL_BANCHETTO_ID     "177"
 // commemntare per contagiri 
 #define TEST
 #ifdef CASA

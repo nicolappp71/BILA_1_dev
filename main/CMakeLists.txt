@@ -1,5 +1,8 @@
 idf_component_register(
     SRCS "collaudo_manager.c" "main.cpp"
+    "spalmatrice_manager.c"
+    "dxf_parser.c"
+    "path_chain.c"
     "bilancia_manager.c"
     "tagliatubi_manager.c"
     "wifi_manager.c"

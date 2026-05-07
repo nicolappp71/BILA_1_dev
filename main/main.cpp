@@ -46,6 +46,14 @@ extern "C"
 #include "tagliatubi_manager.h"
 #include "collaudo_manager.h"
 #include "bilancia_manager.h"
+#include "spalmatrice_manager.h"
+}
+
+// Chiamata da AppBanchetto::run() — definita qui perché spalmatrice_manager è in main
+extern "C" void app_banchetto_spalmatrice_start(void)
+{
+    ESP_LOGI("MAIN", "Spalmatrice: fetch DXF avviato");
+    spalmatrice_manager_fetch_and_parse("http://172.18.2.254/iot/percorsi/sc605Completa.dxf");
 }
 
 static const char *TAG = "MAIN";

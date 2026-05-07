@@ -14,6 +14,7 @@ extern "C"
 #include "collaudo_manager.h"
 }
 extern "C" void myBeep(void);
+extern "C" void app_banchetto_spalmatrice_start(void);
 extern "C" void popup_controllo_open(void);
 extern "C" void popup_avviso_open(const char *titolo, const char *messaggio, bool offline);
 extern "C" void popup_ok_open(const char *titolo, const char *messaggio, const char *footer, void (*on_dismiss)(void));
@@ -2932,6 +2933,8 @@ bool AppBanchetto::run(void)
             break;
         }
     }
+
+    app_banchetto_spalmatrice_start();
 
     // Parte sempre da page1 articolo 0
     banchetto_manager_set_current_index(0);

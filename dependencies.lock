@@ -36,7 +36,7 @@ dependencies:
   esp_lcd_ek79007:
     dependencies: []
     source:
-      path: C:\Users\npuppo\Documents\IDF-projects\PRODUZIONE\BILA_1\components\esp_lcd_ek79007
+      path: C:\Users\npuppo\Documents\IDF-projects\PRODUZIONE\BILA_1_dev\components\esp_lcd_ek79007
       type: local
     version: 1.0.2
   espressif/cmake_utilities:

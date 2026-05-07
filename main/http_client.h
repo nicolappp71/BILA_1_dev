@@ -28,6 +28,10 @@ esp_err_t http_get_request(const char *url, int *response_code, char **response_
  */
 esp_err_t http_post_request(const char *url, const char *post_data, int *response_code, char **response_body);
 esp_err_t http_get_server_time(int *ore, int *minuti);
+
+// Scarica un file di grandi dimensioni in un buffer allocato in PSRAM.
+// Timeout esteso (30s). Il chiamante deve free() il buffer.
+esp_err_t http_get_file_psram(const char *url, char **out_buf, size_t *out_len);
 #ifdef __cplusplus
 }
 #endif

@@ -56,6 +56,7 @@ static banchetto_list_t s_list = {0};
 static uint8_t s_current_idx = 0;
 static SemaphoreHandle_t data_mutex = NULL;
 static char device_key[17] = {0};
+static char s_device_banchetto_id[32] = {0};  // ID banchetto del dispositivo (anche senza ordini)
 static banchetto_state_t s_state = BANCHETTO_STATE_CHECKIN;
 static bool s_versa_abilitato = true;  // toggle conteggio pezzi
 
@@ -219,6 +220,8 @@ const char *banchetto_manager_get_banchetto_id(void)
     {
         if (s_list.count > 0)
             snprintf(id, sizeof(id), "%s", s_list.items[0].banchetto);
+        else if (s_device_banchetto_id[0] != '\0')
+            snprintf(id, sizeof(id), "%s", s_device_banchetto_id);
         xSemaphoreGive(data_mutex);
     }
     return id;
@@ -335,6 +338,17 @@ esp_err_t banchetto_manager_fetch_from_server(void)
     else
     {
         ESP_LOGW(TAG, "Impossibile salvare cache su SD (SD assente?)");
+    }
+
+    // Salva ID banchetto del dispositivo prima di parsare (funziona anche senza ordini)
+    {
+        cJSON *j = cJSON_Parse(response_body);
+        if (j) {
+            cJSON *b = cJSON_GetObjectItem(j, "banchetto");
+            if (b && cJSON_IsString(b) && b->valuestring[0] != '\0')
+                snprintf(s_device_banchetto_id, sizeof(s_device_banchetto_id), "%s", b->valuestring);
+            cJSON_Delete(j);
+        }
     }
 
     static banchetto_list_t temp_list;
@@ -549,6 +563,17 @@ esp_err_t banchetto_manager_load_from_sd(void)
     for (size_t i = 0; i < read; i += 200)
     {
         ESP_LOGI("SD_CACHE", "%.*s", (int)((read - i) > 200 ? 200 : (read - i)), buf + i);
+    }
+
+    // Salva ID banchetto anche dalla cache (funziona senza ordini)
+    {
+        cJSON *j = cJSON_Parse(buf);
+        if (j) {
+            cJSON *b = cJSON_GetObjectItem(j, "banchetto");
+            if (b && cJSON_IsString(b) && b->valuestring[0] != '\0')
+                snprintf(s_device_banchetto_id, sizeof(s_device_banchetto_id), "%s", b->valuestring);
+            cJSON_Delete(j);
+        }
     }
 
     static banchetto_list_t temp_list;
@@ -1419,6 +1444,10 @@ esp_err_t banchetto_manager_assegna_banchetto(const char *barcode)
         cJSON *ok_item = cJSON_GetObjectItem(json, "OK");
         cJSON *banc_item = cJSON_GetObjectItem(json, "banchetto");
         cJSON *err_item = cJSON_GetObjectItem(json, "errore");
+
+        // Salva sempre l'ID banchetto del dispositivo, anche in caso di errore
+        if (banc_item && cJSON_IsString(banc_item) && banc_item->valuestring[0] != '\0')
+            snprintf(s_device_banchetto_id, sizeof(s_device_banchetto_id), "%s", banc_item->valuestring);
 
         if (ok_item && cJSON_IsNumber(ok_item) && ok_item->valueint == 1)
         {
