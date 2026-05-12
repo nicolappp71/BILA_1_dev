@@ -751,10 +751,27 @@ int hosted_write_gpio(void* gpio_port, uint32_t gpio_num, uint32_t value)
 	return gpio_set_level(gpio_num, value);
 }
 
+/* Guardia contro WIFI_EVENT_STA_START duplicati: se il C6 non viene
+ * resettato tra un riavvio e l'altro del P4, accumula handler e invia
+ * l'evento due volte, causando netif_add() doppio e il crash
+ * "netif already added". Questo flag filtra il duplicato lato host. */
+static bool s_sta_start_posted = false;
+
 int hosted_wifi_event_post(int32_t event_id,
 		void* event_data, size_t event_data_size, uint32_t ticks_to_wait)
 {
 	ESP_LOGV(TAG, "event %ld recvd --> event_data:%p event_data_size: %u\n",event_id, event_data, event_data_size);
+
+	if (event_id == WIFI_EVENT_STA_START) {
+		if (s_sta_start_posted) {
+			ESP_LOGW(TAG, "WIFI_EVENT_STA_START duplicato ignorato (slave non resettato)");
+			return ESP_OK;
+		}
+		s_sta_start_posted = true;
+	} else if (event_id == WIFI_EVENT_STA_STOP) {
+		s_sta_start_posted = false;
+	}
+
 	return esp_event_post(WIFI_EVENT, event_id, event_data, event_data_size, ticks_to_wait);
 }
 

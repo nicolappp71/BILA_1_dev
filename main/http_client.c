@@ -159,20 +159,31 @@ esp_err_t http_post_request(const char *url, const char *post_data, int *respons
 }
 
 // ─── Download file grande in PSRAM ───────────────────────────────────────────
+// Usa perform() (più efficiente su SDIO hosted WiFi) con buffer pre-allocato
+// in PSRAM — niente realloc incrementali (causa originale dei download lenti).
 
-typedef struct { char *buf; size_t len; } psram_buf_t;
+typedef struct {
+    char   *buf;
+    size_t  capacity;
+    size_t  len;
+    size_t  next_log;
+} psram_buf_t;
 
 static esp_err_t file_event_handler(esp_http_client_event_t *evt)
 {
     psram_buf_t *p = (psram_buf_t *)evt->user_data;
     if (evt->event_id == HTTP_EVENT_ON_DATA) {
-        size_t new_len = p->len + evt->data_len;
-        char *tmp = heap_caps_realloc(p->buf, new_len + 1, MALLOC_CAP_SPIRAM);
-        if (!tmp) { ESP_LOGE("HTTP_FILE", "PSRAM realloc fallita"); return ESP_FAIL; }
-        p->buf = tmp;
+        if (p->len + (size_t)evt->data_len > p->capacity) {
+            ESP_LOGE("HTTP_FILE", "Buffer PSRAM esaurito (%zu/%zu)", p->len, p->capacity);
+            return ESP_FAIL;
+        }
         memcpy(p->buf + p->len, evt->data, evt->data_len);
-        p->len = new_len;
-        p->buf[p->len] = '\0';
+        p->len += (size_t)evt->data_len;
+        // Log progresso ogni 256 KB
+        if (p->len >= p->next_log) {
+            ESP_LOGI("HTTP_FILE", "  ... %zu KB ricevuti", p->len / 1024);
+            p->next_log += 256 * 1024;
+        }
     }
     return ESP_OK;
 }
@@ -181,32 +192,47 @@ esp_err_t http_get_file_psram(const char *url, char **out_buf, size_t *out_len)
 {
     if (!url || !out_buf || !out_len) return ESP_ERR_INVALID_ARG;
 
-    psram_buf_t p = {.buf = NULL, .len = 0};
+    // Pre-alloca 6 MB di PSRAM in un colpo solo (nessun realloc durante il download)
+    const size_t MAX_SIZE = 6u * 1024 * 1024;
+    char *buf = (char *)heap_caps_malloc(MAX_SIZE + 1, MALLOC_CAP_SPIRAM);
+    if (!buf) {
+        ESP_LOGE("HTTP_FILE", "PSRAM malloc fallita (%zu byte)", MAX_SIZE);
+        return ESP_ERR_NO_MEM;
+    }
+
+    psram_buf_t p = { .buf = buf, .capacity = MAX_SIZE, .len = 0, .next_log = 256*1024 };
 
     esp_http_client_config_t cfg = {
-        .url            = url,
-        .event_handler  = file_event_handler,
-        .user_data      = &p,
-        .timeout_ms     = 30000,
-        .method         = HTTP_METHOD_GET,
-        .buffer_size    = 4096,
+        .url           = url,
+        .event_handler = file_event_handler,
+        .user_data     = &p,
+        .timeout_ms    = 120000,
+        .method        = HTTP_METHOD_GET,
+        .buffer_size   = 4096,
     };
 
+    ESP_LOGI("HTTP_FILE", "Inizio download: %s", url);
     esp_http_client_handle_t client = esp_http_client_init(&cfg);
-    if (!client) return ESP_FAIL;
+    if (!client) { free(buf); return ESP_FAIL; }
 
     esp_err_t err = esp_http_client_perform(client);
-    int code = esp_http_client_get_status_code(client);
+    int code      = esp_http_client_get_status_code(client);
     esp_http_client_cleanup(client);
 
     if (err != ESP_OK || code != 200) {
-        ESP_LOGE("HTTP_FILE", "Errore download: err=%s code=%d", esp_err_to_name(err), code);
-        if (p.buf) free(p.buf);
+        ESP_LOGE("HTTP_FILE", "Errore: err=%s code=%d", esp_err_to_name(err), code);
+        free(buf);
+        return ESP_FAIL;
+    }
+    if (p.len == 0) {
+        ESP_LOGE("HTTP_FILE", "Nessun dato ricevuto");
+        free(buf);
         return ESP_FAIL;
     }
 
+    buf[p.len] = '\0';
     ESP_LOGI("HTTP_FILE", "Download OK: %zu byte", p.len);
-    *out_buf = p.buf;
+    *out_buf = buf;
     *out_len = p.len;
     return ESP_OK;
 }

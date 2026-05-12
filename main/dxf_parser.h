@@ -13,7 +13,8 @@ typedef struct {
     float x1, y1;
 } dxf_segment_t;
 
-// Parse DXF ASCII buffer, estrae solo entità LINE sul layer specificato.
+// Parse DXF ASCII buffer, estrae entità LINE, ARC e LWPOLYLINE (con bulge)
+// sul layer specificato. Tessella archi in segmenti lineari.
 // Alloca *out_segs in PSRAM — il chiamante deve free().
 esp_err_t dxf_parse(const char *buf, size_t len,
                     const char *layer_filter,

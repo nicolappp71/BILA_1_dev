@@ -51,12 +51,12 @@
 #define BSP_I2S_MCLK          (GPIO_NUM_13)
 #define BSP_I2S_LCLK          (GPIO_NUM_10)
 #define BSP_I2S_DOUT          (GPIO_NUM_9)
-#define BSP_I2S_DSIN          (GPIO_NUM_11)
-#define BSP_POWER_AMP_IO      (GPIO_NUM_53)
+#define BSP_I2S_DSIN          (GPIO_NUM_48)
+#define BSP_POWER_AMP_IO      (GPIO_NUM_11)
 
 /* Display */
-#define BSP_LCD_BACKLIGHT     (GPIO_NUM_32)
-#define BSP_LCD_RST           (GPIO_NUM_33)
+#define BSP_LCD_BACKLIGHT     (GPIO_NUM_23)
+#define BSP_LCD_RST           (GPIO_NUM_0)
 #define BSP_LCD_TOUCH_RST     (GPIO_NUM_NC)
 #define BSP_LCD_TOUCH_INT     (GPIO_NUM_NC)
 

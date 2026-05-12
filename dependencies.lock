@@ -36,9 +36,15 @@ dependencies:
   esp_lcd_ek79007:
     dependencies: []
     source:
-      path: C:\Users\npuppo\Documents\IDF-projects\PRODUZIONE\BILA_1_dev\components\esp_lcd_ek79007
+      path: C:\Users\nicol\Documents\esp-idf\BILA_1_dev\components\esp_lcd_ek79007
       type: local
     version: 1.0.2
+  esp_lcd_jd9165:
+    dependencies: []
+    source:
+      path: C:\Users\nicol\Documents\esp-idf\BILA_1_dev\components\esp_lcd_jd9165
+      type: local
+    version: '*'
   espressif/cmake_utilities:
     component_hash: 351350613ceafba240b761b4ea991e0f231ac7a9f59a9ee901f751bddc0bb18f
     dependencies:
@@ -349,6 +355,7 @@ dependencies:
 direct_dependencies:
 - chmorgan/esp-audio-player
 - chmorgan/esp-file-iterator
+- esp_lcd_jd9165
 - espressif/cmake_utilities
 - espressif/esp-brookesia
 - espressif/esp-dl
@@ -364,6 +371,6 @@ direct_dependencies:
 - idf
 - lvgl/lvgl
 - waveshare/esp32_p4_wifi6_touch_lcd_7b
-manifest_hash: be640434f7f860f1e5ca2b308381a6e7a36ee29d1b97b23082a35161338669dd
+manifest_hash: e0fb333aee5f1c542adf54e03e5c0c9adfc29b81a7f9e230254e184dd4ac75b2
 target: esp32p4
 version: 2.0.0

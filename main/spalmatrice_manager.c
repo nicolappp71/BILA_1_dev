@@ -9,6 +9,8 @@
 #include "freertos/semphr.h"
 #include <string.h>
 #include <stdlib.h>
+#include <math.h>
+#include <stdio.h>
 
 static const char *TAG = "SPAL";
 
@@ -17,6 +19,8 @@ static spalmatrice_state_t s_state     = SPAL_STATE_IDLE;
 static path_point_t       *s_path      = NULL;
 static int                 s_path_pts  = 0;
 static int                 s_path_cur  = 0;
+static dxf_segment_t      *s_segs      = NULL;   // segmenti raw per rendering UI
+static int                 s_nsegs     = 0;
 static SemaphoreHandle_t   s_mutex     = NULL;
 static TaskHandle_t        s_run_task  = NULL;
 static volatile bool       s_stop_req  = false;
@@ -164,6 +168,37 @@ void spalmatrice_manager_init(void)
     ESP_LOGI(TAG, "Inizializzato");
 }
 
+// ─── Carica DXF da SD card ────────────────────────────────────────────────────
+esp_err_t spalmatrice_manager_load_dxf_from_sd(const char *filename)
+{
+    char path[64];
+    snprintf(path, sizeof(path), "/sdcard/%s", filename);
+
+    FILE *f = fopen(path, "rb");
+    if (!f) { ESP_LOGE(TAG, "File SD non trovato: %s", path); return ESP_FAIL; }
+
+    fseek(f, 0, SEEK_END);
+    long fsize = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (fsize <= 0 || fsize > 8 * 1024 * 1024) {
+        ESP_LOGE(TAG, "Dimensione file non valida: %ld byte", fsize);
+        fclose(f); return ESP_FAIL;
+    }
+
+    char *buf = (char *)heap_caps_malloc((size_t)fsize + 1, MALLOC_CAP_SPIRAM);
+    if (!buf) { fclose(f); return ESP_ERR_NO_MEM; }
+
+    size_t read = fread(buf, 1, (size_t)fsize, f);
+    fclose(f);
+    buf[read] = '\0';
+
+    ESP_LOGI(TAG, "Letti %zu byte da %s", read, path);
+    esp_err_t ret = spalmatrice_manager_load_dxf(buf, read);
+    free(buf);
+    return ret;
+}
+
 // ─── Fetch DXF da XAMPP, parsea e logga coordinate ───────────────────────────
 static void fetch_parse_task(void *arg)
 {
@@ -209,7 +244,7 @@ esp_err_t spalmatrice_manager_fetch_and_parse(const char *url)
     char *url_copy = strdup(url);
     if (!url_copy) return ESP_ERR_NO_MEM;
     BaseType_t ok = xTaskCreate(fetch_parse_task, "spal_fetch", 12288, url_copy, 5, NULL);
-    ESP_LOGE(TAG, "xTaskCreate spal_fetch: %s", ok == pdPASS ? "OK" : "FAIL");
+    ESP_LOGI(TAG, "xTaskCreate spal_fetch: %s", ok == pdPASS ? "OK" : "FAIL");
     return ESP_OK;
 }
 
@@ -220,6 +255,10 @@ esp_err_t spalmatrice_manager_load_dxf(const char *buf, size_t len)
     int            nsegs = 0;
 
     esp_err_t ret = dxf_parse(buf, len, SPAL_DXF_LAYER, &segs, &nsegs);
+    ESP_LOGI(TAG, "=== SEGMENTI RAW (%d) ===", nsegs);
+    for (int _i = 0; _i < nsegs && _i < 30; _i++)
+        ESP_LOGI(TAG, "  [%3d] (%.2f,%.2f)->(%.2f,%.2f)",
+                 _i, segs[_i].x0, segs[_i].y0, segs[_i].x1, segs[_i].y1);
     if (ret != ESP_OK || nsegs == 0) {
         ESP_LOGE(TAG, "Parse DXF fallito o nessun segmento layer '%s'", SPAL_DXF_LAYER);
         if (segs) free(segs);
@@ -229,7 +268,7 @@ esp_err_t spalmatrice_manager_load_dxf(const char *buf, size_t len)
     path_point_t *path  = NULL;
     int           npts  = 0;
     ret = path_chain(segs, nsegs, &path, &npts);
-    free(segs);
+    // Non liberiamo segs qui: verrà salvato in s_segs e liberato al prossimo caricamento
 
     if (ret != ESP_OK || npts == 0) {
         ESP_LOGE(TAG, "Path chain fallito");
@@ -242,7 +281,12 @@ esp_err_t spalmatrice_manager_load_dxf(const char *buf, size_t len)
         s_path     = path;
         s_path_pts = npts;
         s_path_cur = 0;
-        s_state    = SPAL_STATE_DXF_LOADED;
+        // Conserva i segmenti raw per il rendering UI (senza travel moves)
+        if (s_segs) free(s_segs);
+        s_segs  = segs;
+        s_nsegs = nsegs;
+        segs = NULL;   // trasferisce ownership — non liberare dopo
+        s_state = SPAL_STATE_DXF_LOADED;
         xSemaphoreGive(s_mutex);
     }
 
@@ -303,3 +347,95 @@ void spalmatrice_manager_pump_off(void) { gpio_set_level(SPAL_RELAY_GPIO, 0); }
 spalmatrice_state_t spalmatrice_manager_get_state(void)        { return s_state; }
 int spalmatrice_manager_get_point_count(void)                  { return s_path_pts; }
 int spalmatrice_manager_get_point_current(void)                { return s_path_cur; }
+
+void spalmatrice_manager_get_path(const path_point_t **out_path, int *out_npts)
+{
+    *out_path = s_path;
+    *out_npts = s_path_pts;
+}
+
+void spalmatrice_manager_get_segments(const dxf_segment_t **out_segs, int *out_nsegs)
+{
+    *out_segs  = s_segs;
+    *out_nsegs = s_nsegs;
+}
+
+// ─── Edit point ───────────────────────────────────────────────────────────────
+esp_err_t spalmatrice_manager_edit_path_point(int idx, float nx, float ny)
+{
+    if (!s_path || idx < 0 || idx >= s_path_pts) return ESP_ERR_INVALID_ARG;
+
+    float ox = s_path[idx].x;
+    float oy = s_path[idx].y;
+
+    // Aggiorna s_path
+    s_path[idx].x = nx;
+    s_path[idx].y = ny;
+
+    // Aggiorna anche i segmenti raw corrispondenti (tolleranza 0.1mm)
+    int count = 0;
+    if (s_segs) {
+        for (int i = 0; i < s_nsegs; i++) {
+            if (fabsf(s_segs[i].x0 - ox) < 0.1f && fabsf(s_segs[i].y0 - oy) < 0.1f) {
+                s_segs[i].x0 = nx; s_segs[i].y0 = ny; count++;
+            }
+            if (fabsf(s_segs[i].x1 - ox) < 0.1f && fabsf(s_segs[i].y1 - oy) < 0.1f) {
+                s_segs[i].x1 = nx; s_segs[i].y1 = ny; count++;
+            }
+        }
+    }
+    ESP_LOGI(TAG, "edit_path_point[%d] (%.3f,%.3f)→(%.3f,%.3f), segs aggiornati: %d",
+             idx, ox, oy, nx, ny, count);
+    return ESP_OK;
+}
+
+// ─── Save / Load SD ───────────────────────────────────────────────────────────
+#define SPAL_SD_PATH "/sdcard/spal_percorso.seg"
+#define SPAL_SD_MAGIC 0x53454753u  // "SEGS"
+
+esp_err_t spalmatrice_manager_save_to_sd(void)
+{
+    if (!s_segs || s_nsegs <= 0) return ESP_FAIL;
+    FILE *f = fopen(SPAL_SD_PATH, "wb");
+    if (!f) { ESP_LOGE(TAG, "Impossibile aprire %s in scrittura", SPAL_SD_PATH); return ESP_FAIL; }
+    uint32_t magic = SPAL_SD_MAGIC;
+    fwrite(&magic,   sizeof(magic),          1,        f);
+    fwrite(&s_nsegs, sizeof(s_nsegs),        1,        f);
+    fwrite(s_segs,   sizeof(dxf_segment_t),  s_nsegs,  f);
+    fclose(f);
+    ESP_LOGI(TAG, "Salvati %d segmenti su %s", s_nsegs, SPAL_SD_PATH);
+    return ESP_OK;
+}
+
+esp_err_t spalmatrice_manager_load_from_sd(void)
+{
+    FILE *f = fopen(SPAL_SD_PATH, "rb");
+    if (!f) { ESP_LOGW(TAG, "File %s non trovato", SPAL_SD_PATH); return ESP_FAIL; }
+
+    uint32_t magic = 0;
+    int nsegs = 0;
+    fread(&magic,  sizeof(magic),  1, f);
+    fread(&nsegs,  sizeof(nsegs),  1, f);
+    if (magic != SPAL_SD_MAGIC || nsegs <= 0 || nsegs > 200000) {
+        ESP_LOGE(TAG, "File SD corrotto (magic=%08lx nsegs=%d)", (unsigned long)magic, nsegs);
+        fclose(f); return ESP_FAIL;
+    }
+
+    dxf_segment_t *segs = (dxf_segment_t *)heap_caps_malloc(
+        nsegs * sizeof(dxf_segment_t), MALLOC_CAP_SPIRAM);
+    if (!segs) { fclose(f); return ESP_ERR_NO_MEM; }
+    fread(segs, sizeof(dxf_segment_t), nsegs, f);
+    fclose(f);
+
+    if (xSemaphoreTake(s_mutex, pdMS_TO_TICKS(1000))) {
+        if (s_segs) free(s_segs);
+        s_segs  = segs;
+        s_nsegs = nsegs;
+        s_state = SPAL_STATE_DXF_LOADED;
+        xSemaphoreGive(s_mutex);
+    } else {
+        free(segs); return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "Caricati %d segmenti da SD", nsegs);
+    return ESP_OK;
+}

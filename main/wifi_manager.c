@@ -516,8 +516,7 @@ void wifi_init_sta(void)
 {
     s_wifi_event_group = xEventGroupCreate();
 
-    esp_netif_init();
-    esp_event_loop_create_default();
+    // esp_netif_init() e esp_event_loop_create_default() già chiamati in main.cpp
     esp_netif_create_default_wifi_sta();
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -561,9 +560,9 @@ void wifi_init_sta(void)
             wifi_config.sta.bssid_set = true;
             wifi_config.sta.channel = best_channel;
 
-            ESP_ERROR_CHECK(esp_wifi_stop());
+            // NON fare stop/start con ESP-Hosted: il netif rimane in lwIP e crasha al secondo start
+            esp_wifi_disconnect();
             ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
-            ESP_ERROR_CHECK(esp_wifi_start());
 
             s_is_locked = true;
             memcpy(current_bssid, best_bssid, 6);

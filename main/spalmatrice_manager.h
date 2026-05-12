@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "esp_err.h"
 #include "path_chain.h"
+#include "dxf_parser.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +54,9 @@ esp_err_t spalmatrice_manager_fetch_and_parse(const char *url);
 // Carica DXF da buffer già in memoria.
 esp_err_t spalmatrice_manager_load_dxf(const char *buf, size_t len);
 
+// Legge il file DXF direttamente dalla SD card (/sdcard/<filename>).
+esp_err_t spalmatrice_manager_load_dxf_from_sd(const char *filename);
+
 // Homing: muove verso home X e Y fino ai finecorsa, azzera posizione.
 esp_err_t spalmatrice_manager_home(void);
 
@@ -74,6 +78,21 @@ void spalmatrice_manager_pump_off(void);
 spalmatrice_state_t spalmatrice_manager_get_state(void);
 int spalmatrice_manager_get_point_count(void);   // punti totali del percorso
 int spalmatrice_manager_get_point_current(void); // punto corrente in esecuzione
+
+// Accesso al percorso per il rendering UI (puntatore valido finché non viene
+// caricato un nuovo DXF). *out_path può essere NULL se non ancora caricato.
+void spalmatrice_manager_get_path(const path_point_t **out_path, int *out_npts);
+void spalmatrice_manager_get_segments(const dxf_segment_t **out_segs, int *out_nsegs);
+
+// Modifica il punto path_chain all'indice idx → (nx,ny).
+// Aggiorna anche i segmenti raw corrispondenti e s_path.
+esp_err_t spalmatrice_manager_edit_path_point(int idx, float nx, float ny);
+
+// Salva i segmenti correnti su SD: /sdcard/spal_percorso.seg (formato binario).
+esp_err_t spalmatrice_manager_save_to_sd(void);
+
+// Carica segmenti da SD (sovrascrive quelli attuali). Ritorna ESP_OK se trovato.
+esp_err_t spalmatrice_manager_load_from_sd(void);
 
 #ifdef __cplusplus
 }

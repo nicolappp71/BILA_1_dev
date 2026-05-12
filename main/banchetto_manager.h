@@ -81,6 +81,7 @@ esp_err_t     banchetto_manager_formazione_accettazione(const char *badge);
 bool          banchetto_manager_get_data(banchetto_data_t *out_data);
 bool          banchetto_manager_get_item(uint8_t index, banchetto_data_t *out_data);
 uint8_t       banchetto_manager_get_count(void);
+const char   *banchetto_manager_get_banchetto_id(void);
 
 // Navigazione UI
 uint8_t       banchetto_manager_get_current_index(void);

@@ -66,7 +66,9 @@ static void audio_callback(audio_player_cb_ctx_t *ctx)
 esp_err_t bsp_extra_i2s_read(void *audio_buffer, size_t len, size_t *bytes_read, uint32_t timeout_ms)
 {
     esp_err_t ret = ESP_OK;
-    ret = esp_codec_dev_read(record_dev_handle, audio_buffer, len);
+    if (record_dev_handle) {
+        ret = esp_codec_dev_read(record_dev_handle, audio_buffer, len);
+    }
     *bytes_read = len;
     return ret;
 }
@@ -157,7 +159,9 @@ esp_err_t bsp_extra_codec_init()
     assert((play_dev_handle) && "play_dev_handle not initialized");
 
     record_dev_handle = bsp_audio_codec_microphone_init();
-    assert((record_dev_handle) && "record_dev_handle not initialized");
+    if (!record_dev_handle) {
+        ESP_LOGW("BSP_EXTRA", "Microphone (ES7210) not found, recording disabled");
+    }
 
     bsp_extra_codec_set_fs(CODEC_DEFAULT_SAMPLE_RATE, CODEC_DEFAULT_BIT_WIDTH, CODEC_DEFAULT_CHANNEL);
 

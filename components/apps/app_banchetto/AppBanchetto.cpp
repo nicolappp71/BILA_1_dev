@@ -12,6 +12,7 @@ extern "C"
 #include "tastiera.h"
 #include "wifi_manager.h"
 #include "collaudo_manager.h"
+#include "mode.h"
 }
 extern "C" void myBeep(void);
 extern "C" void app_banchetto_spalmatrice_start(void);
@@ -2874,6 +2875,12 @@ bool AppBanchetto::run(void)
 {
     ESP_LOGI(TAG, "Run app");
 
+    // Se questo dispositivo è la spalmatrice, delega completamente l'UI
+    if (strcmp(banchetto_manager_get_banchetto_id(), SPAL_BANCHETTO_ID) == 0) {
+        app_banchetto_spalmatrice_start();
+        return true;
+    }
+
     uint8_t count = banchetto_manager_get_count();
     if (count == 0)
         count = 1;
@@ -2933,8 +2940,6 @@ bool AppBanchetto::run(void)
             break;
         }
     }
-
-    app_banchetto_spalmatrice_start();
 
     // Parte sempre da page1 articolo 0
     banchetto_manager_set_current_index(0);

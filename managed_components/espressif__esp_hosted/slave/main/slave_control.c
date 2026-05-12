@@ -781,6 +781,10 @@ static esp_err_t req_wifi_init(Rpc *req, Rpc *resp, void *priv_data)
 
 	RPC_RET_FAIL_IF(esp_wifi_init(&cfg));
 
+	if (instance_any_id) {
+		esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, instance_any_id);
+		instance_any_id = NULL;
+	}
 	ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
 			ESP_EVENT_ANY_ID,
 			&event_handler,
